@@ -40,9 +40,26 @@ io.on('connection', function (socket)
 
     socket.on('from android', function(msg)
     {
-        io.emit('to android', 'Echo from server' +  msg);
+
+        var myBox =
+        {
+            x: 400,
+            y: 700,
+            w: 231,
+            h: 199,
+            c: "red"
+        };
+
+        io.emit('to android',  myBox);
 
     });
+
+
+    /*socket.on('from android', function(msg)
+    {
+        io.emit('to android', 'Echo from server' +  msg);
+
+    });*/
 
 
     socket.on('typing', function()

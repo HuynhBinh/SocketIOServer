@@ -48,7 +48,7 @@
 
     socket.on('to android', function(msg)
     {
-        $('#messages').append($('<li>').text(msg));
+        $('#messages').append($('<li>').text(msg.c));
     });
 
     socket.on('join', function(msg)
