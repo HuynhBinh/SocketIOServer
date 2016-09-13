@@ -1,127 +1,157 @@
-var app = require('express')();
-var server = require('http').Server(app);
-var io = require('socket.io')(server);
-
-server.listen(8080);
-server.on('error', onError);
-server.on('listening', onListening);
+var sql = require('mssql');
+var cluster = require('cluster');
+var sticky = require('sticky-session');
 
 
 
-app.get('/', function(req, res)
+
+if(cluster.isMaster)
 {
-  res.sendFile(__dirname + '/index.html');
-});
+    var numWorkers = 2;
 
+    console.log('Master cluster setting up ' + numWorkers + ' workers...');
 
-io.on('connection', function (socket)
-{
-    console.log('new user connected');
-
-    io.emit('join', 'user ' + socket.id + ' has joined');
-
-    socket.on('chat message', function(msg)
+    for(var i = 0; i < numWorkers; i++)
     {
+        cluster.fork();
+    }
 
-        // send message to all the socket connected except the sender
-        //socket.broadcast.emit('broadcast', msg);
+    cluster.on('online', function(worker)
+    {
+        console.log('Worker ' + worker.process.pid + ' is online');
+    });
 
+    cluster.on('exit', function(worker, code, signal)
+    {
+        console.log('Worker ' + worker.process.pid + ' died with code: ' + code + ', and signal: ' + signal);
+        console.log('Starting a new worker');
+        cluster.fork();
+    });
 
-        // send message to all the socket connected
-        //io.emit('broadcast', msg);
+}
+else
+{
+    var app = require('express')();
+    var server = require('http').Server(app);
+    var io = require('socket.io')(server);
 
+    server.listen(8080);
 
-        //process data before send back to client
-        // send message to a specific socket id
-        io.to(socket.id).emit('broadcast', processMessage(msg));
-
+    app.get('/chat', function (req, res)
+    {
+        res.sendFile(__dirname + '/index.html');
     });
 
 
-    socket.on('from android', function(msg)
+    io.on('connection', function (socket)
     {
 
-        var myBox =
+        console.log(socket.id + ' connected');
+
+        io.emit('join', socket.id + ' connected to ' + process.pid);
+
+        socket.on('chat message', function (msg)
         {
-            x: 400,
-            y: 700,
-            w: 231,
-            h: 199,
-            c: "red"
-        };
 
-        io.emit('to android',  myBox);
+            // send message to all the socket connected except the sender
+            //socket.broadcast.emit('broadcast', msg);
+
+
+            //process data before send back to client
+            // send message to a specific socket id
+            processMessage(msg, socket.id, function(data)
+            {
+                console.log(data);
+                io.to(socket.id).emit('broadcast', data);
+            });
+
+
+        });
+
+
+        socket.on('from android', function (msg)
+        {
+
+            processMessage(msg, function(data)
+            {
+                console.log(data);
+                io.emit('to android', data);
+            });
+
+        });
+
+        socket.on('typing', function ()
+        {
+            socket.broadcast.emit('usertyping', 'user is typing');
+
+        });
+
+
+        socket.on('disconnect', function ()
+        {
+            console.log( socket.id + ' disconnected');
+            io.emit('join', socket.id + ' disconnected');
+        });
 
     });
-
-
-    /*socket.on('from android', function(msg)
-    {
-        io.emit('to android', 'Echo from server' +  msg);
-
-    });*/
-
-
-    socket.on('typing', function()
-    {
-        //console.log('user is typing');
-        socket.broadcast.emit('usertyping', 'user is typing');
-
-    });
-
-
-    socket.on('disconnect', function()
-    {
-      console.log('a user disconnected');
-    });
-
-});
-
-
-
-
-
-function processMessage(message)
-{
-    return 'From server: ' + message;
 }
 
 
-
-function onError(error)
+function processMessage(message, sid, callback)
 {
-  if (error.syscall !== 'listen')
-  {
-    throw error;
-  }
+    var username = message;
 
-  var bind = typeof port === 'string'
-      ? 'Pipe ' + port
-      : 'Port ' + port;
+    var connection = new sql.Connection('mssql://sa:sa@1234@203.113.143.247/StackExchange');
+
+    var myBox;
+
+    connection.connect(function (err)
+    {
+        if (err)
+        {
+            callback(err);
+        }
+
+        var request = new sql.Request(connection);
+
+        request.input("username", sql.NVarChar(20), username);
+
+        request.execute("user_UserGet").then(function (recordsets)
+        {
+
+            if (recordsets.length > 1)
+            {
+                var tblUser = recordsets[0];
+                var row0 = tblUser[0];
+
+                var uname = row0.Username;
+                var email = row0.Email;
 
 
-  switch (error.code)
-  {
-    case 'EACCES':
-      console.error(bind + ' requires elevated privileges');
-      process.exit(1);
-      break;
-    case 'EADDRINUSE':
-      console.error(bind + ' is already in use');
-      process.exit(1);
-      break;
-    default:
-      throw error;
-  }
-}
+                myBox =
+                {
+                    name: uname,
+                    email: email,
+                    pro: process.pid,
+                    id: sid
+                };
 
-function onListening()
-{
-  var addr = server.address();
-  var bind = typeof addr === 'string'
-      ? 'pipe ' + addr
-      : 'port ' + addr.port;
+                callback(myBox);
+            }
+            else
+            {
+                myBox =
+                {
+                    name: 'default',
+                    email: 'default@email.com',
+                    pro: process.pid,
+                    id: sid
+                };
 
+                callback(myBox);
+            }
+        });
+    });
 }
 
 module.exports = app;
