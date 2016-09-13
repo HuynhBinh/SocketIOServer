@@ -1,11 +1,87 @@
+var app = require('express')();
 var sql = require('mssql');
 var cluster = require('cluster');
 var sticky = require('sticky-session');
 
+var server = require('http').Server(app);
+
+
+if (!sticky.listen(server, 8080))
+{
+    // Master code
+    server.once('listening', function()
+    {
+        console.log('server started on 3000 port');
+    });
+}
+else
+{
+    var io = require('socket.io')(server);
+
+    app.get('/chat', function (req, res)
+    {
+        res.sendFile(__dirname + '/index.html');
+    });
+
+
+    io.on('connection', function (socket)
+    {
+
+        console.log(socket.id + ' connected');
+
+        io.emit('join', socket.id + ' connected to ' + process.pid);
+
+        socket.on('chat message', function (msg)
+        {
+
+            // send message to all the socket connected except the sender
+            //socket.broadcast.emit('broadcast', msg);
+
+
+            //process data before send back to client
+            // send message to a specific socket id
+            processMessage(msg, socket.id, function(data)
+            {
+                console.log(data);
+                io.to(socket.id).emit('broadcast', data);
+            });
+
+
+        });
+
+
+        socket.on('from android', function (msg)
+        {
+
+            processMessage(msg, function(data)
+            {
+                console.log(data);
+                io.emit('to android', data);
+            });
+
+        });
+
+        socket.on('typing', function ()
+        {
+            socket.broadcast.emit('usertyping', 'user is typing');
+
+        });
+
+
+        socket.on('disconnect', function ()
+        {
+            console.log( socket.id + ' disconnected');
+            io.emit('join', socket.id + ' disconnected');
+        });
+
+    });
+
+}
 
 
 
-if(cluster.isMaster)
+
+/*if(cluster.isMaster)
 {
     var numWorkers = 2;
 
@@ -94,7 +170,7 @@ else
         });
 
     });
-}
+}*/
 
 
 function processMessage(message, sid, callback)
