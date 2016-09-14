@@ -6,9 +6,15 @@ var sql = require('mssql');
 
 var sticky = require('socketio-sticky-session');
 
-//var redis = require('socket.io-redis');
-//io.adapter(redis({ host: 'localhost', port: 6379 }));
+// remember to install redis
+// guide to install redis
+// http://lifesforlearning.com/install-redis-mac-osx/
+var redis = require('socket.io-redis');
 
+var REDIS_HOST = 'localhost';
+var REDIS_PORT = 6379;
+
+io.adapter(redis({ host: REDIS_HOST, port: REDIS_PORT }));
 
 var PORT = 8080;
 var SQLConnection = 'mssql://sa:sa@1234@203.113.143.247/StackExchange';
@@ -65,7 +71,7 @@ io.on(OnConnection, function (socket)
         {
             //console.log(data);
             // send message to a specific socket id
-            io.to(socket.id).emit(EmitBroadcast, data);
+            io.emit(EmitBroadcast, data);
         });
 
     });
