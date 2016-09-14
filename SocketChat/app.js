@@ -1,85 +1,102 @@
 var app = require('express')();
+var server = require('http').createServer(app);
+var io = require ('socket.io').listen(server);
+
 var sql = require('mssql');
-var cluster = require('cluster');
-var sticky = require('sticky-session');
 
-var server = require('http').Server(app);
+var sticky = require('socketio-sticky-session');
+
+//var redis = require('socket.io-redis');
+//io.adapter(redis({ host: 'localhost', port: 6379 }));
 
 
-if (!sticky.listen(server, 8080))
+var PORT = 8080;
+var SQLConnection = 'mssql://sa:sa@1234@203.113.143.247/StackExchange';
+
+var OnConnection = 'connection';
+var OnChat = 'chat message';
+var OnTyping = 'typing';
+var OnDisconnect = 'disconnect';
+var OnAndroidSentData = 'from android';
+
+var EmitSocketJoin = 'join';
+var EmitBroadcast = 'broadcast';
+var EmitSendDataToAndroid = 'to android';
+var EmitUserXisTyping = 'usertyping';
+
+var options =
 {
-    // Master code
-    server.once('listening', function()
+    proxy: false, //activate layer 4 patching
+    header: 'x-forwarded-for', //provide here your header containing the users ip
+    num: 4,
+    sync:
     {
-        console.log('server started on 3000 port');
-    });
+        isSynced: true, //activate synchronization
+        event: 'mySyncEventCall' //name of the event you're going to call
+    }
 }
-else
+
+
+sticky(server).listen(PORT, function()
 {
-    var io = require('socket.io')(server);
+    console.log('server started on port: ' + PORT + ' - Process: ' + process.pid);
+});
 
-    app.get('/chat', function (req, res)
+
+app.get('/', function (req, res)
+{
+    res.sendFile(__dirname + '/index.html');
+});
+
+
+io.on(OnConnection, function (socket)
+{
+    console.log(socket.id + ' connected');
+
+    io.emit(EmitSocketJoin, socket.id + ' connected to process ' + process.pid);
+
+    socket.on(OnChat, function (msg)
     {
-        res.sendFile(__dirname + '/index.html');
-    });
+        // send message to all the socket connected except the sender
+        //socket.broadcast.emit('broadcast', msg);
 
-
-    io.on('connection', function (socket)
-    {
-
-        console.log(socket.id + ' connected');
-
-        io.emit('join', socket.id + ' connected to ' + process.pid);
-
-        socket.on('chat message', function (msg)
+        //process data before send back to client
+        processMessage(msg, socket.id, function(data)
         {
-
-            // send message to all the socket connected except the sender
-            //socket.broadcast.emit('broadcast', msg);
-
-
-            //process data before send back to client
+            //console.log(data);
             // send message to a specific socket id
-            processMessage(msg, socket.id, function(data)
-            {
-                console.log(data);
-                io.to(socket.id).emit('broadcast', data);
-            });
-
-
-        });
-
-
-        socket.on('from android', function (msg)
-        {
-
-            processMessage(msg, function(data)
-            {
-                console.log(data);
-                io.emit('to android', data);
-            });
-
-        });
-
-        socket.on('typing', function ()
-        {
-            socket.broadcast.emit('usertyping', 'user is typing');
-
-        });
-
-
-        socket.on('disconnect', function ()
-        {
-            console.log( socket.id + ' disconnected');
-            io.emit('join', socket.id + ' disconnected');
+            io.to(socket.id).emit(EmitBroadcast, data);
         });
 
     });
 
-}
+    socket.on(OnAndroidSentData, function (msg)
+    {
+
+        processMessage(msg, function(data)
+        {
+            console.log(data);
+            io.emit(EmitSendDataToAndroid, data);
+        });
+
+    });
+
+    socket.on(OnTyping, function ()
+    {
+        socket.broadcast.emit(EmitUserXisTyping, socket.id + ' is typing');
+
+    });
+
+    socket.on(OnDisconnect, function ()
+    {
+        console.log( socket.id + ' disconnected');
+        io.emit(EmitSocketJoin, socket.id + ' disconnected');
+    });
+
+});
 
 
-
+// cluster without Sticky-Session
 
 /*if(cluster.isMaster)
 {
@@ -172,12 +189,15 @@ else
     });
 }*/
 
+// cluster without Sticky-Session
 
+
+// Test method
 function processMessage(message, sid, callback)
 {
     var username = message;
 
-    var connection = new sql.Connection('mssql://sa:sa@1234@203.113.143.247/StackExchange');
+    var connection = new sql.Connection(SQLConnection);
 
     var myBox;
 
@@ -229,5 +249,6 @@ function processMessage(message, sid, callback)
         });
     });
 }
+
 
 module.exports = app;
