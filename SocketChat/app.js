@@ -65,25 +65,19 @@ app.get('/', function (req, res)
 
 io.on(OnConnection, function (socket)
 {
-    console.log(socket.id + ' connected');
+    console.log(socket.id + ' connected to process ' + process.pid);
 
     io.emit(EmitSocketJoin, socket.id + ' connected to process ' + process.pid);
 
     socket.on(OnChat, function (msg)
     {
         // send message to all the socket connected except the sender
-        //socket.broadcast.emit('broadcast', msg);
+        // socket.broadcast.emit('broadcast', msg);
 
-        //process data before send back to client
-        /*processMessage(msg, socket.id, function(data)
+        // process data before send back to client
+        processMessage(msg, socket.id, function(data)
         {
-            //console.log(data);
             // send message to a specific socket id
-            io.to(socket.id).emit(EmitBroadcast, data);
-        });*/
-
-        getCategories(msg, socket.id, function(data)
-        {
             io.to(socket.id).emit(EmitBroadcast, data);
         });
 
@@ -91,7 +85,6 @@ io.on(OnConnection, function (socket)
 
     socket.on(OnAndroidSentData, function (msg)
     {
-
         processMessage(msg, function(data)
         {
             console.log(data);
@@ -103,16 +96,15 @@ io.on(OnConnection, function (socket)
     socket.on(OnTyping, function ()
     {
         socket.broadcast.emit(EmitUserXisTyping, socket.id + ' is typing');
-
     });
 
 
     socket.on(FromAndroid_GetPosts, function(msg)
     {
-            getPosts(msg, socket.id, function(data)
-            {
-                io.to(socket.id).emit(ToAndroid_GetPosts, data);
-            });
+        getPosts(msg, socket.id, function(data)
+        {
+            io.to(socket.id).emit(ToAndroid_GetPosts, data);
+        });
     });
 
     socket.on(FromAndroid_GetAddresses, function(msg)
@@ -134,7 +126,7 @@ io.on(OnConnection, function (socket)
 
     socket.on(OnDisconnect, function ()
     {
-        console.log( socket.id + ' disconnected');
+        console.log(socket.id + ' disconnected to ' + process.pid);
         io.emit(EmitSocketJoin, socket.id + ' disconnected');
     });
 
@@ -250,9 +242,9 @@ function getPosts(message, sid, callback)
         }
 
         var request = new sql.Request(connection);
+
         request.execute("Test_GetPosts").then(function (recordsets)
         {
-
             if (recordsets.length > 0)
             {
                 var posts = recordsets[0];
@@ -261,7 +253,13 @@ function getPosts(message, sid, callback)
             }
             else
             {
-                callback('fail');
+                var resultFail =
+                {
+                    status: 'fail',
+                    message: 'abc asd'
+                };
+
+                callback(resultFail);
             }
         });
     });
@@ -279,6 +277,7 @@ function getAddresses(message, sid, callback)
         }
 
         var request = new sql.Request(connection);
+
         request.execute("Test_GetAddresses").then(function (recordsets)
         {
 
@@ -290,7 +289,13 @@ function getAddresses(message, sid, callback)
             }
             else
             {
-                callback('fail');
+                var resultFail =
+                {
+                    status: 'fail',
+                    message: 'abc asd'
+                };
+
+                callback(resultFail);
             }
         });
     });
@@ -309,6 +314,7 @@ function getCategories(message, sid, callback)
         }
 
         var request = new sql.Request(connection);
+
         request.execute("Test_GetCategories").then(function (recordsets)
         {
 
@@ -320,7 +326,13 @@ function getCategories(message, sid, callback)
             }
             else
             {
-                callback('fail');
+                var resultFail =
+                {
+                    status: 'fail',
+                    message: 'abc asd'
+                };
+
+                callback(resultFail);
             }
         });
     });
