@@ -1,25 +1,24 @@
 var app = require('express')();
 var server = require('http').createServer(app);
 var io = require ('socket.io').listen(server);
-
 var sql = require('mssql');
-
 var sticky = require('socketio-sticky-session');
 
 // remember to install redis
 // guide to install redis
 // http://lifesforlearning.com/install-redis-mac-osx/
-var redis = require('socket.io-redis');
-
+//var redis = require('socket.io-redis');
 var REDIS_HOST = 'localhost';
 var REDIS_PORT = 6379;
-
-io.adapter(redis({ host: REDIS_HOST, port: REDIS_PORT }));
+// just connect to redis in case, we want to send message to all sockets in different process
+// in case, we just want to send message to a socket, no need redis adapter -> it will make the app run not as smooth
+//io.adapter(redis({ host: REDIS_HOST, port: REDIS_PORT }));
 
 var PORT = 8080;
 var SQLConnection = 'mssql://sa:sa@1234@203.113.143.247/StackExchange';
 
 var OnConnection = 'connection';
+
 var OnChat = 'chat message';
 var OnTyping = 'typing';
 var OnDisconnect = 'disconnect';
@@ -30,11 +29,20 @@ var EmitBroadcast = 'broadcast';
 var EmitSendDataToAndroid = 'to android';
 var EmitUserXisTyping = 'usertyping';
 
+var FromAndroid_GetPosts = 'FromAndroid_GetPosts';
+var FromAndroid_GetAddresses = 'FromAndroid_GetAddresses';
+var FromAndroid_GetCategories = 'FromAndroid_GetCategories';
+
+var ToAndroid_GetPosts = 'ToAndroid_GetPosts';
+var ToAndroid_GetAddresses = 'ToAndroid_GetAddresses';
+var ToAndroid_GetCategories = 'ToAndroid_GetCategories';
+
+
 var options =
 {
     proxy: false, //activate layer 4 patching
     header: 'x-forwarded-for', //provide here your header containing the users ip
-    num: 4,
+    num: 2,
     sync:
     {
         isSynced: true, //activate synchronization
@@ -67,11 +75,16 @@ io.on(OnConnection, function (socket)
         //socket.broadcast.emit('broadcast', msg);
 
         //process data before send back to client
-        processMessage(msg, socket.id, function(data)
+        /*processMessage(msg, socket.id, function(data)
         {
             //console.log(data);
             // send message to a specific socket id
-            io.emit(EmitBroadcast, data);
+            io.to(socket.id).emit(EmitBroadcast, data);
+        });*/
+
+        getCategories(msg, socket.id, function(data)
+        {
+            io.to(socket.id).emit(EmitBroadcast, data);
         });
 
     });
@@ -91,6 +104,32 @@ io.on(OnConnection, function (socket)
     {
         socket.broadcast.emit(EmitUserXisTyping, socket.id + ' is typing');
 
+    });
+
+
+    socket.on(FromAndroid_GetPosts, function(msg)
+    {
+            getPosts(msg, socket.id, function(data)
+            {
+                io.to(socket.id).emit(ToAndroid_GetPosts, data);
+            });
+    });
+
+    socket.on(FromAndroid_GetAddresses, function(msg)
+    {
+        getAddresses(msg, socket.id, function(data)
+        {
+            io.to(socket.id).emit(ToAndroid_GetAddresses, data);
+        });
+    });
+
+
+    socket.on(FromAndroid_GetCategories, function(msg)
+    {
+        getCategories(msg, socket.id, function(data)
+        {
+            io.to(socket.id).emit(ToAndroid_GetCategories, data);
+        });
     });
 
     socket.on(OnDisconnect, function ()
@@ -196,6 +235,96 @@ else
 }*/
 
 // cluster without Sticky-Session
+
+
+
+function getPosts(message, sid, callback)
+{
+    var connection = new sql.Connection(SQLConnection);
+
+    connection.connect(function (err)
+    {
+        if (err)
+        {
+            callback(err);
+        }
+
+        var request = new sql.Request(connection);
+        request.execute("Test_GetPosts").then(function (recordsets)
+        {
+
+            if (recordsets.length > 0)
+            {
+                var posts = recordsets[0];
+
+                callback(JSON.stringify(posts));
+            }
+            else
+            {
+                callback('fail');
+            }
+        });
+    });
+}
+
+function getAddresses(message, sid, callback)
+{
+    var connection = new sql.Connection(SQLConnection);
+
+    connection.connect(function (err)
+    {
+        if (err)
+        {
+            callback(err);
+        }
+
+        var request = new sql.Request(connection);
+        request.execute("Test_GetAddresses").then(function (recordsets)
+        {
+
+            if (recordsets.length > 0)
+            {
+                var addresses = recordsets[0];
+
+                callback(JSON.stringify(addresses));
+            }
+            else
+            {
+                callback('fail');
+            }
+        });
+    });
+}
+
+
+function getCategories(message, sid, callback)
+{
+    var connection = new sql.Connection(SQLConnection);
+
+    connection.connect(function (err)
+    {
+        if (err)
+        {
+            callback(err);
+        }
+
+        var request = new sql.Request(connection);
+        request.execute("Test_GetCategories").then(function (recordsets)
+        {
+
+            if (recordsets.length > 0)
+            {
+                var cates = recordsets[0];
+
+                callback(JSON.stringify(cates));
+            }
+            else
+            {
+                callback('fail');
+            }
+        });
+    });
+}
 
 
 // Test method
