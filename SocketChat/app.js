@@ -4,6 +4,21 @@ var io = require ('socket.io').listen(server);
 var sql = require('mssql');
 var sticky = require('socketio-sticky-session');
 
+// mongo db
+var mongoose = require('mongoose');
+mongoose.Promise = global.Promise;
+mongoose.connect('mongodb://mongo101:Cicevn2007@waffle.modulusmongo.net:27017/ihUzu8du');
+var db = mongoose.connection;
+db.on('error', console.error.bind(console, 'connection error:'));
+db.once('open', function() {
+    console.log("mongo connected");
+});
+
+var Cat = mongoose.model('Cat', { name: String, age: String, sex: String });
+//mongo db
+
+
+// redis
 // remember to install redis
 // guide to install redis
 // http://lifesforlearning.com/install-redis-mac-osx/
@@ -13,6 +28,7 @@ var REDIS_PORT = 6379;
 // just connect to redis in case, we want to send message to all sockets in different process
 // in case, we just want to send message to a socket, no need redis adapter -> it will make the app run not as smooth
 //io.adapter(redis({ host: REDIS_HOST, port: REDIS_PORT }));
+// redis
 
 var PORT = 8080;
 var SQLConnection = 'mssql://sa:sa@1234@203.113.143.247/StackExchange';
@@ -22,27 +38,29 @@ var OnConnection = 'connection';
 var OnChat = 'chat message';
 var OnTyping = 'typing';
 var OnDisconnect = 'disconnect';
-var OnAndroidSentData = 'from android';
 
 var EmitSocketJoin = 'join';
 var EmitBroadcast = 'broadcast';
-var EmitSendDataToAndroid = 'to android';
 var EmitUserXisTyping = 'usertyping';
 
 var FromAndroid_GetPosts = 'FromAndroid_GetPosts';
 var FromAndroid_GetAddresses = 'FromAndroid_GetAddresses';
 var FromAndroid_GetCategories = 'FromAndroid_GetCategories';
+var FromAndroid_InsertCat = 'FromAndroid_InsertCat';
+var FromAndroid_GetCats = 'FromAndroid_GetCats';
 
 var ToAndroid_GetPosts = 'ToAndroid_GetPosts';
 var ToAndroid_GetAddresses = 'ToAndroid_GetAddresses';
 var ToAndroid_GetCategories = 'ToAndroid_GetCategories';
+var ToAndroid_InsertCat = 'ToAndroid_InsertCat';
+var ToAndroid_GetCats = 'ToAndroid_GetCats';
 
 
 var options =
 {
     proxy: false, //activate layer 4 patching
     header: 'x-forwarded-for', //provide here your header containing the users ip
-    num: 2,
+    num: 1,
     sync:
     {
         isSynced: true, //activate synchronization
@@ -51,7 +69,7 @@ var options =
 }
 
 
-sticky(server).listen(PORT, function()
+sticky(options, server).listen(PORT, function()
 {
     console.log('server started on port: ' + PORT + ' - Process: ' + process.pid);
 });
@@ -83,12 +101,13 @@ io.on(OnConnection, function (socket)
 
     });
 
-    socket.on(OnAndroidSentData, function (msg)
+    socket.on('from android', function (msg)
     {
-        processMessage(msg, function(data)
+
+        processMessage(msg, socket.id, function(data)
         {
-            console.log(data);
-            io.emit(EmitSendDataToAndroid, data);
+            // send message to a specific socket id
+            io.to(socket.id).emit('to android', data);
         });
 
     });
@@ -96,6 +115,37 @@ io.on(OnConnection, function (socket)
     socket.on(OnTyping, function ()
     {
         socket.broadcast.emit(EmitUserXisTyping, socket.id + ' is typing');
+    });
+
+
+    socket.on('from android', function (msg)
+    {
+
+        processMessage(msg, socket.id, function(data)
+        {
+            // send message to a specific socket id
+            io.to(socket.id).emit('to android', data);
+        });
+
+    });
+
+
+    socket.on(FromAndroid_GetCats, function(msg)
+    {
+        getCats(msg, socket.id, function(data)
+        {
+            io.to(socket.id).emit(ToAndroid_GetCats, data);
+        });
+    });
+
+
+
+    socket.on(FromAndroid_InsertCat, function(msg)
+    {
+        insertCat(msg, socket.id, function(data)
+        {
+            io.to(socket.id).emit(ToAndroid_InsertCat, data);
+        });
     });
 
 
@@ -230,6 +280,51 @@ else
 
 
 
+function getCats(message, sid, callback)
+{
+    Cat.find(function (err, kittens)
+    {
+        if (err)
+        {
+            callback(JSON.stringify(err));
+        }
+        else
+        {
+            for(kit in kittens)
+            {
+                console.log(kit.name + ' ' + kit.age + ' ' + kit.sex);
+            }
+
+            callback(JSON.stringify(kittens));
+        }
+    })
+}
+
+
+function insertCat(message, sid, callback)
+{
+    var kitty = new Cat({ name: 'bimbim' , age: '12', sex: 'male' });
+
+    kitty.save(function (err)
+    {
+        if (err)
+        {
+            callback(JSON.stringify(err));
+        }
+        else
+        {
+            var success =
+            {
+                status: 'success',
+                data: kitty
+            };
+
+            callback(JSON.stringify(success));
+        }
+    });
+}
+
+
 function getPosts(message, sid, callback)
 {
     var connection = new sql.Connection(SQLConnection);
@@ -259,7 +354,7 @@ function getPosts(message, sid, callback)
                     message: 'abc asd'
                 };
 
-                callback(resultFail);
+                callback(JSON.stringify(resultFail));
             }
         });
     });
@@ -295,7 +390,7 @@ function getAddresses(message, sid, callback)
                     message: 'abc asd'
                 };
 
-                callback(resultFail);
+                callback(JSON.stringify(resultFail));
             }
         });
     });
@@ -332,7 +427,7 @@ function getCategories(message, sid, callback)
                     message: 'abc asd'
                 };
 
-                callback(resultFail);
+                callback(JSON.stringify(resultFail));
             }
         });
     });
@@ -379,7 +474,7 @@ function processMessage(message, sid, callback)
                     id: sid
                 };
 
-                callback(myBox);
+                callback(JSON.stringify(myBox));
             }
             else
             {
@@ -391,7 +486,7 @@ function processMessage(message, sid, callback)
                     id: sid
                 };
 
-                callback(myBox);
+                callback(JSON.stringify(myBox));
             }
         });
     });

@@ -31,8 +31,18 @@
 
     $('form').submit(function()
     {
-        socket.emit('chat message', $('#m').val());
+        /*socket.emit('chat message', $('#m').val());
+        $('#m').val('');*/
+
+
+      /* socket.emit('FromAndroid_InsertCat', $('#m').val());
+        $('#m').val('');*/
+
+
+        socket.emit('FromAndroid_GetCats', $('#m').val());
         $('#m').val('');
+
+
         return false;
     });
 
@@ -44,13 +54,23 @@
     socket.on('broadcast', function(msg)
     {
         //$('#messages').append($('<li>').text(msg.name + ' ' + msg.email + ' - SOCKET: ' + msg.id + ' PROCESS: ' + msg.pro ));
-
-        $('#messages').append($('<li>').text(msg));
+        $('#messages').append($('<li>').text(msg.toString()));
     });
 
     socket.on('to android', function(msg)
     {
-        $('#messages').append($('<li>').text(msg.name + ' ' + msg.email + ' - SOCKET: ' + msg.id + ' PROCESS: ' + msg.pro ));
+        $('#messages').append($('<li>').text(msg.toString()));
+    });
+
+    socket.on('ToAndroid_InsertCat', function(msg)
+    {
+        $('#messages').append($('<li>').text(msg.toString()));
+    });
+
+
+    socket.on('ToAndroid_GetCats', function(msg)
+    {
+        $('#messages').append($('<li>').text(msg.toString()));
     });
 
     socket.on('join', function(msg)
