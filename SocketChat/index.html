@@ -31,16 +31,16 @@
 
     $('form').submit(function()
     {
-        /*socket.emit('chat message', $('#m').val());
-        $('#m').val('');*/
+        socket.emit('chat message', $('#m').val());
+        $('#m').val('');
 
 
       /* socket.emit('FromAndroid_InsertCat', $('#m').val());
         $('#m').val('');*/
 
 
-        socket.emit('FromAndroid_GetCats', $('#m').val());
-        $('#m').val('');
+        /*socket.emit('FromAndroid_GetCats', $('#m').val());
+        $('#m').val('');*/
 
 
         return false;

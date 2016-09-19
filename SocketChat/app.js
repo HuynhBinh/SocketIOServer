@@ -7,7 +7,7 @@ var sticky = require('socketio-sticky-session');
 // mongo db
 var mongoose = require('mongoose');
 mongoose.Promise = global.Promise;
-mongoose.connect('mongodb://mongo101:Cicevn2007@waffle.modulusmongo.net:27017/ihUzu8du');
+mongoose.connect('mongodb://mongo103:Cicevn2007@waffle.modulusmongo.net:27017/haxehe2N');
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
 db.once('open', function() {
@@ -48,19 +48,21 @@ var FromAndroid_GetAddresses = 'FromAndroid_GetAddresses';
 var FromAndroid_GetCategories = 'FromAndroid_GetCategories';
 var FromAndroid_InsertCat = 'FromAndroid_InsertCat';
 var FromAndroid_GetCats = 'FromAndroid_GetCats';
+var FromAndroid_Echo = 'FromAndroid_Echo';
 
 var ToAndroid_GetPosts = 'ToAndroid_GetPosts';
 var ToAndroid_GetAddresses = 'ToAndroid_GetAddresses';
 var ToAndroid_GetCategories = 'ToAndroid_GetCategories';
 var ToAndroid_InsertCat = 'ToAndroid_InsertCat';
 var ToAndroid_GetCats = 'ToAndroid_GetCats';
+var ToAndroid_Echo = 'ToAndroid_Echo';
 
 
 var options =
 {
     proxy: false, //activate layer 4 patching
     header: 'x-forwarded-for', //provide here your header containing the users ip
-    num: 1,
+    num: 2,
     sync:
     {
         isSynced: true, //activate synchronization
@@ -103,7 +105,6 @@ io.on(OnConnection, function (socket)
 
     socket.on('from android', function (msg)
     {
-
         processMessage(msg, socket.id, function(data)
         {
             // send message to a specific socket id
@@ -117,18 +118,10 @@ io.on(OnConnection, function (socket)
         socket.broadcast.emit(EmitUserXisTyping, socket.id + ' is typing');
     });
 
-
-    socket.on('from android', function (msg)
+    socket.on(FromAndroid_Echo, function(msg)
     {
-
-        processMessage(msg, socket.id, function(data)
-        {
-            // send message to a specific socket id
-            io.to(socket.id).emit('to android', data);
-        });
-
+        io.to(socket.id).emit(ToAndroid_Echo, 'From server: ' + msg);
     });
-
 
     socket.on(FromAndroid_GetCats, function(msg)
     {
@@ -303,7 +296,7 @@ function getCats(message, sid, callback)
 
 function insertCat(message, sid, callback)
 {
-    var kitty = new Cat({ name: 'bimbim' , age: '12', sex: 'male' });
+    var kitty = new Cat({ name: 'bim bim' , age: '02', sex: 'M' });
 
     kitty.save(function (err)
     {
